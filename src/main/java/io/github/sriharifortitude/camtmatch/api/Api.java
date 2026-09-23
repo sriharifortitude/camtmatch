@@ -26,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 @RestController
 @RequestMapping("/api")
@@ -61,7 +63,11 @@ public class Api {
             String customerIban) {}
 
     @PutMapping("/invoices/{id}")
-    public ResponseEntity<?> putInvoice(@PathVariable @Size(max = 64) String id, @Valid @RequestBody InvoiceBody body) {
+    public ResponseEntity<?> putInvoice(@PathVariable String id, @Valid @RequestBody InvoiceBody body) {
+        // Checked here rather than with @Size on the parameter: a constraint on
+        // a path variable turns on method validation for the whole handler,
+        // which reports body errors as HandlerMethodValidationException.
+        if (id.isBlank() || id.length() > 64) throw new BadRequest("id: must be 1-64 characters");
         Optional<CreditorReference> rf = Optional.ofNullable(body.creditorReference()).filter(s -> !s.isBlank()).map(s ->
                 CreditorReference.parse(s).orElseThrow(() -> new BadRequest("creditorReference: not a valid ISO 11649 reference")));
         Optional<Iban> iban = Optional.ofNullable(body.customerIban()).filter(s -> !s.isBlank()).map(s ->
@@ -127,6 +133,15 @@ public class Api {
     ProblemDetail invalid(MethodArgumentNotValidException e) {
         String detail = e.getBindingResult().getFieldErrors().stream()
                 .map(f -> f.getField() + ": " + f.getDefaultMessage()).sorted().reduce((a, b) -> a + "; " + b).orElse("invalid");
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", detail);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    ProblemDetail invalidMethod(HandlerMethodValidationException e) {
+        String detail = e.getParameterValidationResults().stream()
+                .flatMap(r -> r.getResolvableErrors().stream()
+                        .map(err -> (err instanceof FieldError f ? f.getField() : r.getMethodParameter().getParameterName()) + ": " + err.getDefaultMessage()))
+                .sorted().reduce((a, b) -> a + "; " + b).orElse("invalid");
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", detail);
     }
 

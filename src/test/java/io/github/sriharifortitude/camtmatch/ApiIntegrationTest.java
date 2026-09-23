@@ -189,6 +189,8 @@ class ApiIntegrationTest {
         assertThat(badBody.statusCode()).isEqualTo(400);
         assertThat(badBody.body()).contains("amountDue:", "currency:", "number:");
 
+        assertThat(json("PUT", "/api/invoices/" + "x".repeat(65), "{\"number\":\"N\",\"amountDue\":10,\"currency\":\"EUR\",\"customerName\":\"C\"}").body())
+                .contains("id: must be 1-64 characters");
         assertThat(json("GET", "/api/statements/00000000-0000-0000-0000-000000000000/matches", null).statusCode()).isEqualTo(404);
     }
 }
