@@ -1,0 +1,17 @@
+# Local development database. Tests do not use this; they start their own
+# Postgres through Testcontainers.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: camtmatch-postgres
+    environment:
+      POSTGRES_USER: camtmatch
+      POSTGRES_PASSWORD: camtmatch_local_dev
+      POSTGRES_DB: camtmatch
+    ports:
+      - "127.0.0.1:5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U camtmatch -d camtmatch"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
